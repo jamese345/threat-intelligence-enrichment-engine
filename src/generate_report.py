@@ -6,18 +6,36 @@ from pathlib import Path
 REPORTS_DIR = Path("reports")
 
 
-def save_json_report(enrichment_results, filename="enrichment_results.json"):
+def save_json_report(
+    enrichment_results,
+    filename="enrichment_results.json"
+):
     REPORTS_DIR.mkdir(exist_ok=True)
 
     output_path = REPORTS_DIR / filename
 
     with open(output_path, "w", encoding="utf-8") as file:
-        json.dump(enrichment_results, file, indent=4)
+        json.dump(
+            enrichment_results,
+            file,
+            indent=4
+        )
 
     return output_path
 
 
-def save_csv_report(enrichment_results, filename="enrichment_results.csv"):
+def save_csv_report(
+    enrichment_results,
+    filename="enrichment_results.csv"
+):
+    """
+    Save IOC-level threat intelligence results.
+
+    MITRE ATT&CK data is intentionally excluded because
+    MITRE techniques describe alert behavior rather than
+    individual IOC reputation.
+    """
+
     REPORTS_DIR.mkdir(exist_ok=True)
 
     output_path = REPORTS_DIR / filename
@@ -38,7 +56,13 @@ def save_csv_report(enrichment_results, filename="enrichment_results.csv"):
         "soc_recommendation",
     ]
 
-    with open(output_path, "w", newline="", encoding="utf-8") as file:
+    with open(
+        output_path,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+
         writer = csv.DictWriter(
             file,
             fieldnames=fieldnames
@@ -48,8 +72,113 @@ def save_csv_report(enrichment_results, filename="enrichment_results.csv"):
 
         for result in results:
             writer.writerow({
-                field: result.get(field)
-                for field in fieldnames
+                "indicator": result.get(
+                    "indicator"
+                ),
+                "indicator_type": result.get(
+                    "indicator_type"
+                ),
+                "source": result.get(
+                    "source"
+                ),
+                "pulse_count": result.get(
+                    "pulse_count"
+                ),
+                "reputation": result.get(
+                    "reputation"
+                ),
+                "status": result.get(
+                    "status"
+                ),
+                "ioc_risk": result.get(
+                    "ioc_risk"
+                ),
+                "confidence": result.get(
+                    "confidence"
+                ),
+                "global_threat_level": result.get(
+                    "global_threat_level"
+                ),
+                "global_threat_score": result.get(
+                    "global_threat_score"
+                ),
+                "urgency_modifier": result.get(
+                    "urgency_modifier"
+                ),
+                "soc_recommendation": result.get(
+                    "soc_recommendation"
+                ),
+            })
+
+    return output_path
+
+
+def save_mitre_csv_report(
+    enrichment_results,
+    filename="mitre_attack.csv"
+):
+    """
+    Save alert-level MITRE ATT&CK analysis.
+
+    MITRE techniques represent behavioral evidence
+    identified from the alert.
+    """
+
+    REPORTS_DIR.mkdir(exist_ok=True)
+
+    output_path = REPORTS_DIR / filename
+
+    mitre_techniques = enrichment_results.get(
+        "mitre_attack",
+        []
+    )
+
+    fieldnames = [
+        "technique_id",
+        "name",
+        "tactics",
+        "matched_keywords",
+        "description",
+    ]
+
+    with open(
+        output_path,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+
+        writer = csv.DictWriter(
+            file,
+            fieldnames=fieldnames
+        )
+
+        writer.writeheader()
+
+        for technique in mitre_techniques:
+            writer.writerow({
+                "technique_id": technique.get(
+                    "technique_id"
+                ),
+                "name": technique.get(
+                    "name"
+                ),
+                "tactics": "; ".join(
+                    technique.get(
+                        "tactics",
+                        []
+                    )
+                ),
+                "matched_keywords": "; ".join(
+                    technique.get(
+                        "matched_keywords",
+                        []
+                    )
+                ),
+                "description": technique.get(
+                    "description",
+                    ""
+                ),
             })
 
     return output_path
@@ -59,6 +188,13 @@ def generate_text_report(
     enrichment_results,
     filename="enrichment_report.txt"
 ):
+    """
+    Generate a concise SOC analyst report.
+
+    Full MITRE descriptions remain available in the
+    JSON and MITRE CSV reports.
+    """
+
     REPORTS_DIR.mkdir(exist_ok=True)
 
     output_path = REPORTS_DIR / filename
@@ -76,6 +212,11 @@ def generate_text_report(
     analyst_assessment = enrichment_results.get(
         "analyst_assessment",
         {}
+    )
+
+    mitre_techniques = enrichment_results.get(
+        "mitre_attack",
+        []
     )
 
     results = enrichment_results.get(
@@ -129,14 +270,48 @@ def generate_text_report(
         f"Context Status: "
         f"{global_context.get('status', 'Unknown')}",
         "",
-        "ENRICHED INDICATORS",
+        "MITRE ATT&CK ANALYSIS",
         "-" * 70,
+        f"Techniques Identified: {len(mitre_techniques)}",
     ]
 
-    if not results:
-        lines.append("No indicators were enriched.")
+    if not mitre_techniques:
+        lines.append(
+            "No MITRE ATT&CK techniques identified."
+        )
 
-    for index, result in enumerate(results, start=1):
+    else:
+        for index, technique in enumerate(
+            mitre_techniques,
+            start=1
+        ):
+            lines.extend([
+                "",
+                f"[{index}] "
+                f"{technique.get('technique_id', 'Unknown')} "
+                f"- "
+                f"{technique.get('name', 'Unknown')}",
+                f"Tactics: "
+                f"{', '.join(technique.get('tactics', []))}",
+                f"Evidence: "
+                f"{', '.join(technique.get('matched_keywords', []))}",
+            ])
+
+    lines.extend([
+        "",
+        "ENRICHED INDICATORS",
+        "-" * 70,
+    ])
+
+    if not results:
+        lines.append(
+            "No indicators were enriched."
+        )
+
+    for index, result in enumerate(
+        results,
+        start=1
+    ):
         lines.extend([
             "",
             f"[{index}] "
@@ -167,10 +342,14 @@ def generate_text_report(
         )
 
         if reasons:
-            lines.append("Risk Reasons:")
+            lines.append(
+                "Risk Reasons:"
+            )
 
             for reason in reasons:
-                lines.append(f"  - {reason}")
+                lines.append(
+                    f"  - {reason}"
+                )
 
     lines.extend([
         "",
@@ -184,14 +363,27 @@ def generate_text_report(
         "w",
         encoding="utf-8"
     ) as file:
-        file.write("\n".join(lines))
+        file.write(
+            "\n".join(lines)
+        )
 
     return output_path
 
 
-def generate_all_reports(enrichment_results):
+def generate_all_reports(
+    enrichment_results
+):
     return {
-        "json": save_json_report(enrichment_results),
-        "csv": save_csv_report(enrichment_results),
-        "text": generate_text_report(enrichment_results),
+        "json": save_json_report(
+            enrichment_results
+        ),
+        "csv": save_csv_report(
+            enrichment_results
+        ),
+        "mitre_csv": save_mitre_csv_report(
+            enrichment_results
+        ),
+        "text": generate_text_report(
+            enrichment_results
+        ),
     }

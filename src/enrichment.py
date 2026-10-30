@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from src.normalize_iocs import normalize_iocs
+from src.mitre_attack import MitreAttackMapper
 from src.analyst_workflow import build_analyst_assessment
 from src.extract_iocs import extract_iocs
 from src.threat_intelligence import safe_enrich
@@ -12,6 +15,17 @@ from src.risk_context import (
     generate_recommendation
 )
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+MITRE_DATA_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "enterprise-attack.json"
+)
+
+MITRE_MAPPER = MitreAttackMapper(
+    str(MITRE_DATA_PATH)
+)
 
 
 def get_safe_global_context():
@@ -34,6 +48,9 @@ def enrich_alert(alert_text):
 
     iocs = extract_iocs(alert_text)
     iocs = normalize_iocs(iocs)
+    mitre_techniques = MITRE_MAPPER.map_alert_to_techniques(
+    alert_text
+    )
 
     results = []
 
@@ -86,6 +103,7 @@ def enrich_alert(alert_text):
     analyst_assessment = build_analyst_assessment(
         enriched_results,
         context_interpretation["urgency_modifier"],
+        mitre_techniques,
     )
 
     return {
@@ -93,6 +111,7 @@ def enrich_alert(alert_text):
         "unique_ioc_count": len(enriched_results),
         "global_threat_context": global_context,
         "context_interpretation": context_interpretation,
+        "mitre_attack": mitre_techniques,
         "analyst_assessment": analyst_assessment,
         "results": enriched_results,
     }

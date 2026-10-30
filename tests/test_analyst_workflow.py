@@ -5,6 +5,7 @@ from src.analyst_workflow import (
     calculate_overall_confidence,
     determine_analyst_action,
     generate_analyst_summary,
+    summarize_mitre_techniques,
     build_analyst_assessment,
 )
 
@@ -120,6 +121,164 @@ class TestAnalystWorkflow(unittest.TestCase):
         self.assertIn("HIGH risk", summary)
         self.assertIn("ESCALATE", summary)
 
+    def test_mitre_summary_empty(self):
+        assessment = build_analyst_assessment(
+            [],
+            "LOW",
+            [],
+        )
+
+        self.assertEqual(
+            assessment["mitre_attack"]["technique_count"],
+            0
+        )
+
+        self.assertEqual(
+            assessment["mitre_attack"]["techniques"],
+            []
+        )
+
+    def test_mitre_summary_single_technique(self):
+        results = [
+            {
+                "ioc_risk": "MEDIUM",
+                "confidence": "MEDIUM",
+            }
+        ]
+
+        mitre_techniques = [
+            {
+                "technique_id": "T1110",
+                "name": "Brute Force",
+                "tactics": ["credential-access"],
+                "matched_keywords": [
+                    "brute force",
+                    "failed login",
+                ],
+            }
+        ]
+
+        assessment = build_analyst_assessment(
+            results,
+            "MODERATE",
+            mitre_techniques,
+        )
+
+        mitre = assessment["mitre_attack"]
+
+        self.assertEqual(
+            mitre["technique_count"],
+            1
+        )
+
+        self.assertEqual(
+            mitre["techniques"][0]["technique_id"],
+            "T1110"
+        )
+
+        self.assertEqual(
+            mitre["techniques"][0]["name"],
+            "Brute Force"
+        )
+
+    def test_mitre_summary_multiple_techniques(self):
+        results = [
+            {
+                "ioc_risk": "HIGH",
+                "confidence": "HIGH",
+            }
+        ]
+
+        mitre_techniques = [
+            {
+                "technique_id": "T1110",
+                "name": "Brute Force",
+                "tactics": ["credential-access"],
+                "matched_keywords": [
+                    "brute force",
+                ],
+            },
+            {
+                "technique_id": "T1059",
+                "name": "Command and Scripting Interpreter",
+                "tactics": ["execution"],
+                "matched_keywords": [
+                    "powershell",
+                ],
+            },
+        ]
+
+        assessment = build_analyst_assessment(
+            results,
+            "HIGH",
+            mitre_techniques,
+        )
+
+        mitre = assessment["mitre_attack"]
+
+        self.assertEqual(
+            mitre["technique_count"],
+            2
+        )
+
+        technique_ids = [
+            technique["technique_id"]
+            for technique in mitre["techniques"]
+        ]
+
+        self.assertIn(
+            "T1110",
+            technique_ids
+        )
+
+        self.assertIn(
+            "T1059",
+            technique_ids
+        )
+
+    def test_mitre_evidence_preserved(self):
+        results = [
+            {
+                "ioc_risk": "MEDIUM",
+                "confidence": "MEDIUM",
+            }
+        ]
+
+        mitre_techniques = [
+            {
+                "technique_id": "T1110",
+                "name": "Brute Force",
+                "tactics": ["credential-access"],
+                "matched_keywords": [
+                    "brute force",
+                    "failed login",
+                ],
+            }
+        ]
+
+        assessment = build_analyst_assessment(
+            results,
+            "MODERATE",
+            mitre_techniques,
+        )
+
+        technique = assessment[
+            "mitre_attack"
+        ]["techniques"][0]
+
+        self.assertEqual(
+            technique["matched_keywords"],
+            [
+                "brute force",
+                "failed login",
+            ]
+        )
+
+        self.assertEqual(
+            technique["tactics"],
+            ["credential-access"]
+        )
+
     def test_complete_assessment(self):
         results = [
             {
@@ -150,6 +309,25 @@ class TestAnalystWorkflow(unittest.TestCase):
         self.assertIn(
             "analyst_summary",
             assessment
+        )
+
+    def test_mitre_description_is_preserved(self):
+        mitre_techniques = [
+            {
+                "technique_id": "T1110",
+                "name": "Brute Force",
+                "description": "Adversaries may use brute force techniques to gain access to accounts.",
+                "tactics": ["credential-access"],
+                "matched_keywords": ["brute force"],
+            }
+        ]
+
+        result = summarize_mitre_techniques(mitre_techniques)
+
+        self.assertEqual(result["technique_count"], 1)
+        self.assertEqual(
+            result["techniques"][0]["description"],
+            "Adversaries may use brute force techniques to gain access to accounts."
         )
 
 

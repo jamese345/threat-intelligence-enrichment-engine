@@ -4,9 +4,13 @@ from src.generate_report import generate_all_reports
 
 def main():
     alert = """
-    Suspicious login activity detected from 8.8.8.8.
-    The user also connected to malicious-example.com.
-    """
+        Multiple failed login attempts detected against the admin account.
+        The attacker appears to be using a compromised account.
+        PowerShell command execution was also detected after authentication.
+        Possible credential dumping activity targeting LSASS was observed.
+        The attacker performed account discovery to enumerate users.
+        The source IP was 185.10.10.25 and the suspicious domain was malicious-example.com.
+        """
 
     results = enrich_alert(alert)
 

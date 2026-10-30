@@ -138,10 +138,52 @@ def generate_analyst_summary(
         f"Recommended action: {action}."
     )
 
+def summarize_mitre_techniques(mitre_techniques):
+    """
+    Summarize MITRE ATT&CK techniques identified from alert behavior.
+    """
+
+    if not mitre_techniques:
+        return {
+            "technique_count": 0,
+            "techniques": [],
+        }
+
+    techniques = []
+
+    for technique in mitre_techniques:
+        techniques.append({
+            "technique_id": technique.get(
+                "technique_id",
+                "UNKNOWN"
+            ),
+            "name": technique.get(
+                "name",
+                "Unknown"
+            ),
+            "description": technique.get(
+                "description", ""
+            ),
+            "tactics": technique.get(
+                "tactics",
+                []
+            ),
+            "matched_keywords": technique.get(
+                "matched_keywords",
+                []
+            ),
+        })
+
+    return {
+        "technique_count": len(techniques),
+        "techniques": techniques,
+    }
+
 
 def build_analyst_assessment(
     results,
     urgency_modifier="UNKNOWN",
+    mitre_techniques=None,
 ):
     """
     Build the complete SOC analyst assessment.
@@ -162,10 +204,14 @@ def build_analyst_assessment(
         action,
         risk_summary,
     )
+    mitre_summary = summarize_mitre_techniques(
+        mitre_techniques or []
+    )
 
     return {
         **risk_summary,
         "overall_confidence": confidence,
         "recommended_action": action,
         "analyst_summary": summary,
+         "mitre_attack": mitre_summary,
     }

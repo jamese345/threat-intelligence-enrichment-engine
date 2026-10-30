@@ -20,3 +20,6 @@ reports/*.txt
 # OS
 .DS_Store
 Thumbs.db
+
+# Large MITRE ATT&CK dataset
+data/enterprise-attack.json
